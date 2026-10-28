@@ -13,6 +13,9 @@ Left click           arm a tool, then place it; otherwise select, or start\n\
 Drag from a port     draw a wire, released on a free input port\n\
 Click on an input    toggle it between 0 and 1\n\
 Click on a wire      select it\n\
+Click on a bend      drag the corner; on a segment, slide it\n\
+Ctrl+click segment   insert a bend at that point\n\
+Ctrl+click a bend    remove that bend\n\
 Right click          delete the node or the wire under the cursor\n\
 Delete, Backspace    delete the selection\n\
 Escape               drop the drag and go back to Select\n\

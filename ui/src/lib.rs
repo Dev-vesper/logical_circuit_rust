@@ -2,6 +2,7 @@ pub mod buttons;
 pub mod canvas;
 pub mod doc;
 pub mod menu;
+pub mod router;
 pub mod shapes;
 pub mod style;
 pub mod truth_panel;

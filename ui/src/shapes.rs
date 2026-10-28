@@ -40,20 +40,37 @@ pub fn snap(v: f64) -> f64 {
 }
 
 pub fn route(sx: f64, sy: f64, dx: f64, dy: f64) -> Vec<Point> {
-    if dx == sx || (dy == sy && dx > sx) {
-        vec![]
-    } else if dx >= sx + 2.0 * CELL {
+    // Already aligned or the same point: no interior bends.
+    if (dx - sx).abs() < 0.01 && (dy - sy).abs() < 0.01 {
+        return vec![];
+    }
+    if (dy - sy).abs() < 0.01 && dx > sx {
+        return vec![];
+    }
+    if (dx - sx).abs() < 0.01 {
+        return vec![];
+    }
+
+    // Plenty of room in front: Z with the vertical leg in between.
+    if dx >= sx + 2.0 * CELL {
         let mid = (sx + CELL).max((dx - CELL).min(snap((sx + dx) / 2.0)));
-        vec![
-            Point { x: mid, y: sy },
-            Point { x: mid, y: dy },
-        ]
-    } else {
-        vec![
+        return vec![Point { x: mid, y: sy }, Point { x: mid, y: dy }];
+    }
+    // A little room: L that turns down just before the target.
+    if dx > sx + CELL {
+        return vec![
             Point { x: dx - CELL, y: sy },
             Point { x: dx - CELL, y: dy },
-        ]
+        ];
     }
+    // The target is behind the source, or barely in front: lead out to
+    // the right, run above the whole span, then come back down.
+    let top = sy.min(dy) - CELL;
+    vec![
+        Point { x: sx + CELL, y: sy },
+        Point { x: sx + CELL, y: top },
+        Point { x: dx, y: top },
+    ]
 }
 
 pub const INK: (f64, f64, f64) = (0.13, 0.15, 0.19);

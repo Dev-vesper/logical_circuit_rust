@@ -8,6 +8,7 @@ use logic::{Circuit, Kind, Value};
 
 use crate::doc::{Doc, Id, Wire};
 use crate::shapes;
+use crate::router;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tool {
@@ -265,17 +266,24 @@ fn with_bend(
         .collect();
     fit(doc, w, moved)
 }
+fn obstacles_for(doc: &Doc, w: &Wire) -> Vec<(f64, f64, f64, f64)> {
+    let mut out = Vec::new();
+    doc.iter(|n| {
+        if n.id != w.src && n.id != w.dst {
+            out.push((n.x, n.y, shapes::SIZE, shapes::SIZE));
+        }
+    });
+    out
+}
 
 fn bends_of(doc: &Doc, w: &Wire) -> Vec<(f64, f64)> {
-    let bends = match doc.route(w.dst, w.port) {
-        v if v.is_empty() => {
-            let (sx, sy, dx, dy) = wire_ends(doc, w);
-            shapes::route(sx, sy, dx, dy)
-                .into_iter()
-                .map(|p| (p.x, p.y))
-                .collect()
-        }
-        stored => stored,
+    let stored = doc.route(w.dst, w.port);
+    let bends = if stored.is_empty() {
+        let (sx, sy, dx, dy) = wire_ends(doc, w);
+        let obs = obstacles_for(doc, w);
+        router::route((sx, sy), (dx, dy), &obs)
+    } else {
+        stored
     };
     fit(doc, w, bends)
 }
@@ -401,10 +409,14 @@ pub fn render(cr: &cairo::Context, doc: &Doc, width: f64, height: f64, view: &Vi
         let port = shapes::output_port(&node.kind);
         let sx = node.x + port.x;
         let sy = node.y + port.y;
-        let bends: Vec<(f64, f64)> = shapes::route(sx, sy, *tx, *ty)
-            .into_iter()
-            .map(|p| (p.x, p.y))
-            .collect();
+        let target_id = target.map(|(id, _)| id);
+        let mut obs = Vec::new();
+        doc.iter(|n| {
+            if n.id != *src && Some(n.id) != target_id {
+                obs.push((n.x, n.y, shapes::SIZE, shapes::SIZE));
+            }
+        });
+        let bends = router::route((sx, sy), (*tx, *ty), &obs);
         let mut path = vec![(sx, sy)];
         path.extend(bends);
         path.push((*tx, *ty));
@@ -426,6 +438,7 @@ pub fn render(cr: &cairo::Context, doc: &Doc, width: f64, height: f64, view: &Vi
         }
     }
 }
+
 
 pub fn render_board(cr: &cairo::Context, doc: &Doc, width: f64, height: f64) {
     let (values, on_cycle, letters) = snapshot(doc);
@@ -647,9 +660,29 @@ impl CanvasState {
         self.refresh();
     }
 
-    fn press(&mut self, button: u32, mx: f64, my: f64) -> bool {
+    fn press(&mut self, button: u32, ctrl: bool, mx: f64, my: f64) -> bool {
         self.hover = None;
         match button {
+            1 if ctrl => {
+                // Ctrl+click on a bend removes it; on a segment, inserts one
+                // at that point (Logisim-style toggle).
+                if let Some((wire, index)) = self.bend_at(mx, my) {
+                    let mut bends = bends_of(&self.doc, &wire);
+                    if index < bends.len() {
+                        bends.remove(index);
+                        self.doc.set_route(wire.dst, wire.port, bends);
+                        self.selection = Some(Selection::Wire(wire));
+                        self.refresh();
+                        (self.report)("bend removed".to_string());
+                    }
+                } else if let Some((wire, seg)) = self.wire_at(mx, my) {
+                    if self.insert_bend(&wire, seg, mx, my) {
+                        self.selection = Some(Selection::Wire(wire));
+                        self.refresh();
+                        (self.report)("bend added".to_string());
+                    }
+                }
+            }
             1 => match self.tool {
                 Tool::Place(kind) => {
                     let id = self.doc.add(kind, shapes::snap(mx), shapes::snap(my));
@@ -721,6 +754,34 @@ impl CanvasState {
             }
             _ => {}
         }
+        true
+    }
+
+    fn insert_bend(&mut self, wire: &Wire, seg: usize, mx: f64, my: f64) -> bool {
+        let mut bends = bends_of(&self.doc, wire);
+        let path = wire_path(&self.doc, wire);
+        if seg + 1 >= path.len() {
+            return false;
+        }
+        let (ax, ay) = path[seg];
+        let (bx, by) = path[seg + 1];
+        let horizontal = (ay - by).abs() < 0.01;
+        let vertical = (ax - bx).abs() < 0.01;
+        let mut px = dot_snap(mx);
+        let mut py = dot_snap(my);
+        // If the snapped click lands exactly on the segment, nudge it one
+        // dot perpendicular to the click side so the new corner is visible
+        // (a collinear bend would be swallowed by `orthogonalize`).
+        if horizontal && (py - ay).abs() < 0.01 {
+            let dir = if my >= ay { 1.0 } else { -1.0 };
+            py = ay + dir * DOT_SPACING;
+        }
+        if vertical && (px - ax).abs() < 0.01 {
+            let dir = if mx >= ax { 1.0 } else { -1.0 };
+            px = ax + dir * DOT_SPACING;
+        }
+        bends.insert(seg, (px, py));
+        self.doc.set_route(wire.dst, wire.port, bends);
         true
     }
 
@@ -925,7 +986,8 @@ impl Canvas {
             area.connect_button_press_event(move |area, ev| {
                 area.grab_focus();
                 let mut st = state.borrow_mut();
-                st.press(ev.button(), ev.position().0, ev.position().1);
+                let ctrl = ev.state().contains(gdk::ModifierType::CONTROL_MASK);
+                st.press(ev.button(), ctrl, ev.position().0, ev.position().1);
                 area.queue_draw();
                 glib::Propagation::Proceed
             });
