@@ -1,0 +1,16 @@
+[package]
+name = "ui"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+logic.workspace = true
+cairo-rs = "0.18"
+gtk = "0.18"
+gdk = "0.18"
+glib = "0.18"
+pango = "0.18"
+
+[[bin]]
+name = "ui_main"
+path = "src/bin/ui_main.rs"

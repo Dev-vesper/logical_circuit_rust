@@ -1,0 +1,4 @@
+[package]
+name = "logic"
+version.workspace = true
+edition.workspace = true
