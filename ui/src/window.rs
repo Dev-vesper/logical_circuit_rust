@@ -8,17 +8,17 @@ use crate::menu;
 use crate::truth_panel::TruthPanel;
 
 const KEYS_TEXT: &str = "\
-Left click           arm a tool, then place it; otherwise select, or start\n\
-                     dragging the node under the cursor\n\
-Drag from a port     draw a wire, released on a free input port\n\
-Click on an input    toggle it between 0 and 1\n\
-Click on a wire      select it\n\
-Click on a bend      drag the corner; on a segment, slide it\n\
+Drag from a port     draw a wire; release on an input port to finish\n\
+Click while drawing  add a corner (repeat as many times as needed)\n\
+Escape               cancel the wire being drawn\n\
+\n\
+Alt+click on wire    select a wire so it can be edited or deleted\n\
+Click on a bend      drag that corner; on a segment, slide it\n\
 Ctrl+click segment   insert a bend at that point\n\
 Ctrl+click a bend    remove that bend\n\
 Right click          delete the node or the wire under the cursor\n\
 Delete, Backspace    delete the selection\n\
-Escape               drop the drag and go back to Select\n\
+Click on an input    toggle it between 0 and 1\n\
 \n\
 Green cable = 1, grey = 0, amber = no value yet, red = feedback cycle.";
 

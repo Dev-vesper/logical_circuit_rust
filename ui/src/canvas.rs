@@ -7,8 +7,8 @@ use gtk::prelude::*;
 use logic::{Circuit, Kind, Value};
 
 use crate::doc::{Doc, Id, Wire};
-use crate::shapes;
 use crate::router;
+use crate::shapes;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tool {
@@ -31,8 +31,11 @@ pub enum Drag {
     },
     Wiring {
         src: Id,
-        tx: f64,
-        ty: f64,
+        /// نقاطی که کاربر با کلیک کامیت کرده، از پورت مبدأ شروع می‌شود.
+        pts: Vec<(f64, f64)>,
+        /// موقعیت فعلی نشانگر (یا موقعیت پورت مقصد اگر روی آن hover است).
+        cursor: (f64, f64),
+        /// پورت ورودی زیر نشانگر، اگر وجود دارد.
         target: Option<(Id, usize)>,
     },
     Adjusting {
@@ -184,6 +187,24 @@ fn distance_to_segment(px: f64, py: f64, ax: f64, ay: f64, bx: f64, by: f64) -> 
     ((px - (ax + t * vx)).powi(2) + (py - (ay + t * vy)).powi(2)).sqrt()
 }
 
+/// مسیر متعامد از `from` تا `to` با حداکثر یک گوشه.
+/// اگر نقاط یکی باشند، خالی برمی‌گرداند.
+fn orthogonal_path(from: (f64, f64), to: (f64, f64)) -> Vec<(f64, f64)> {
+    if (from.0 - to.0).abs() < 0.5 && (from.1 - to.1).abs() < 0.5 {
+        return vec![];
+    }
+    if (from.0 - to.0).abs() < 0.5 || (from.1 - to.1).abs() < 0.5 {
+        return vec![to];
+    }
+    let dx = (to.0 - from.0).abs();
+    let dy = (to.1 - from.1).abs();
+    if dx >= dy {
+        vec![(to.0, from.1), to]
+    } else {
+        vec![(from.0, to.1), to]
+    }
+}
+
 fn normalize(bends: Vec<(f64, f64)>) -> Vec<(f64, f64)> {
     let mut out = Vec::new();
     let mut iter = bends.into_iter().peekable();
@@ -266,6 +287,7 @@ fn with_bend(
         .collect();
     fit(doc, w, moved)
 }
+
 fn obstacles_for(doc: &Doc, w: &Wire) -> Vec<(f64, f64, f64, f64)> {
     let mut out = Vec::new();
     doc.iter(|n| {
@@ -404,22 +426,20 @@ pub fn render(cr: &cairo::Context, doc: &Doc, width: f64, height: f64, view: &Vi
         }
     }
 
-    if let Some(Drag::Wiring { src, tx, ty, target }) = view.drag {
-        let node = doc.node(*src);
-        let port = shapes::output_port(&node.kind);
-        let sx = node.x + port.x;
-        let sy = node.y + port.y;
-        let target_id = target.map(|(id, _)| id);
-        let mut obs = Vec::new();
-        doc.iter(|n| {
-            if n.id != *src && Some(n.id) != target_id {
-                obs.push((n.x, n.y, shapes::SIZE, shapes::SIZE));
-            }
-        });
-        let bends = router::route((sx, sy), (*tx, *ty), &obs);
-        let mut path = vec![(sx, sy)];
-        path.extend(bends);
-        path.push((*tx, *ty));
+    if let Some(Drag::Wiring {
+        pts,
+        cursor,
+        target,
+        ..
+    }) = view.drag
+    {
+        let mut path = pts.clone();
+        let last = *pts.last().unwrap();
+        let orth = orthogonal_path(last, *cursor);
+        path.extend(orth);
+        if path.len() < 2 {
+            path.push(*cursor);
+        }
         draw_path(cr, shapes::SELECTED, 2.5, Some(&[6.0, 4.0]), &path);
         match target {
             Some((dst, index)) => {
@@ -431,14 +451,13 @@ pub fn render(cr: &cairo::Context, doc: &Doc, width: f64, height: f64, view: &Vi
                 cr.stroke();
             }
             None => {
-                cr.arc(*tx, *ty, 3.0, 0.0, 2.0 * std::f64::consts::PI);
+                cr.arc(cursor.0, cursor.1, 3.0, 0.0, 2.0 * std::f64::consts::PI);
                 shapes::set_color(cr, shapes::SELECTED);
                 cr.fill();
             }
         }
     }
 }
-
 
 pub fn render_board(cr: &cairo::Context, doc: &Doc, width: f64, height: f64) {
     let (values, on_cycle, letters) = snapshot(doc);
@@ -660,29 +679,63 @@ impl CanvasState {
         self.refresh();
     }
 
-    fn press(&mut self, button: u32, ctrl: bool, mx: f64, my: f64) -> bool {
+    fn press(&mut self, button: u32, ctrl: bool, alt: bool, mx: f64, my: f64) -> bool {
         self.hover = None;
-        match button {
-            1 if ctrl => {
-                // Ctrl+click on a bend removes it; on a segment, inserts one
-                // at that point (Logisim-style toggle).
-                if let Some((wire, index)) = self.bend_at(mx, my) {
-                    let mut bends = bends_of(&self.doc, &wire);
-                    if index < bends.len() {
-                        bends.remove(index);
-                        self.doc.set_route(wire.dst, wire.port, bends);
-                        self.selection = Some(Selection::Wire(wire));
-                        self.refresh();
-                        (self.report)("bend removed".to_string());
-                    }
-                } else if let Some((wire, seg)) = self.wire_at(mx, my) {
-                    if self.insert_bend(&wire, seg, mx, my) {
-                        self.selection = Some(Selection::Wire(wire));
-                        self.refresh();
-                        (self.report)("bend added".to_string());
-                    }
+
+        // اگر در حال کشیدن سیم هستیم، هر کلیک چپ یک گوشه کامیت می‌کند.
+        if button == 1 {
+            if let Some(Drag::Wiring { pts, cursor, .. }) = &mut self.drag {
+                let last = *pts.last().unwrap();
+                let orth = orthogonal_path(last, *cursor);
+                if !orth.is_empty() {
+                    pts.extend(orth);
                 }
+                return true;
             }
+            if self.drag.is_some() {
+                return false;
+            }
+        }
+
+        // Alt+کلیک روی سیم، آن را انتخاب می‌کند (قانون Logisim).
+        if button == 1 && alt {
+            if let Some((w, _)) = self.wire_at(mx, my) {
+                self.selection = Some(Selection::Wire(w));
+                return true;
+            }
+        }
+
+        // Ctrl+کلیک روی گوشه حذف؛ روی سگمنت افزودن.
+        if button == 1 && ctrl {
+            if let Some((wire, index)) = self.bend_at(mx, my) {
+                let mut bends = bends_of(&self.doc, &wire);
+                if index < bends.len() {
+                    bends.remove(index);
+                    self.doc.set_route(wire.dst, wire.port, bends);
+                    self.selection = Some(Selection::Wire(wire));
+                    self.refresh();
+                    (self.report)("bend removed".to_string());
+                }
+                return true;
+            }
+            if let Some((wire, seg)) = self.wire_at(mx, my) {
+                if self.insert_bend(&wire, seg, mx, my) {
+                    self.selection = Some(Selection::Wire(wire));
+                    self.refresh();
+                    (self.report)("bend added".to_string());
+                }
+                return true;
+            }
+            return true;
+        }
+
+        // راست‌کلیک وسط درگ سیم، آن را لغو می‌کند.
+        if button == 3 && matches!(self.drag, Some(Drag::Wiring { .. })) {
+            self.drag = None;
+            return true;
+        }
+
+        match button {
             1 => match self.tool {
                 Tool::Place(kind) => {
                     let id = self.doc.add(kind, shapes::snap(mx), shapes::snap(my));
@@ -693,8 +746,16 @@ impl CanvasState {
                 }
                 Tool::Select => match self.port_at(mx, my) {
                     Some(PortHit::Out(id)) => {
+                        let node = self.doc.node(id);
+                        let port = shapes::output_port(&node.kind);
+                        let start = (node.x + port.x, node.y + port.y);
                         let (tx, ty, target) = self.wire_target(mx, my);
-                        self.drag = Some(Drag::Wiring { src: id, tx, ty, target });
+                        self.drag = Some(Drag::Wiring {
+                            src: id,
+                            pts: vec![start],
+                            cursor: (tx, ty),
+                            target,
+                        });
                     }
                     Some(PortHit::In(dst, port)) => {
                         if self.doc.node(dst).ports[port].is_some() {
@@ -800,9 +861,14 @@ impl CanvasState {
                     }
                     new_drag = Some(Drag::Moving { node, offset, origin });
                 }
-                Drag::Wiring { src, .. } => {
-                    let (tx, ty, target) = self.wire_target(mx, my);
-                    new_drag = Some(Drag::Wiring { src, tx, ty, target });
+                Drag::Wiring { src, pts, .. } => {
+                    let (tx, ty, tgt) = self.wire_target(mx, my);
+                    new_drag = Some(Drag::Wiring {
+                        src,
+                        pts,
+                        cursor: (tx, ty),
+                        target: tgt,
+                    });
                 }
                 Drag::Adjusting {
                     wire,
@@ -884,21 +950,43 @@ impl CanvasState {
                         self.refresh();
                     }
                 }
-                Drag::Wiring { src, target, .. } => match target {
-                    Some((dst, port)) => {
-                        if self.doc.connect(src, dst, Some(port)).is_some() {
-                            (self.report)("wire added".to_string());
-                            self.refresh();
-                        } else {
-                            (self.report)(
-                                "every input port of that gate is wired already".to_string(),
-                            );
+                Drag::Wiring {
+                    src,
+                    mut pts,
+                    cursor,
+                    target,
+                } => {
+                    let last = *pts.last().unwrap();
+                    let orth = orthogonal_path(last, cursor);
+                    if !orth.is_empty() {
+                        pts.extend(orth);
+                    }
+                    match target {
+                        Some((dst, port)) => {
+                            let waypoints: Vec<(f64, f64)> = if pts.len() >= 2 {
+                                let mut wp = pts[1..].to_vec();
+                                wp.pop();
+                                normalize(wp)
+                            } else {
+                                vec![]
+                            };
+                            if self.doc.connect(src, dst, Some(port)).is_some() {
+                                if !waypoints.is_empty() {
+                                    self.doc.set_route(dst, port, waypoints);
+                                }
+                                (self.report)("wire added".to_string());
+                                self.refresh();
+                            } else {
+                                (self.report)(
+                                    "every input port of that gate is wired already".to_string(),
+                                );
+                            }
+                        }
+                        None => {
+                            (self.report)("a wire has to end on an input port".to_string());
                         }
                     }
-                    None => {
-                        (self.report)("a wire has to end on an input port".to_string());
-                    }
-                },
+                }
                 Drag::Adjusting { wire, bends, .. } => {
                     if self.moved {
                         let norm = normalize(fit(&self.doc, &wire, bends));
@@ -987,7 +1075,8 @@ impl Canvas {
                 area.grab_focus();
                 let mut st = state.borrow_mut();
                 let ctrl = ev.state().contains(gdk::ModifierType::CONTROL_MASK);
-                st.press(ev.button(), ctrl, ev.position().0, ev.position().1);
+                let alt = ev.state().contains(gdk::ModifierType::MOD1_MASK);
+                st.press(ev.button(), ctrl, alt, ev.position().0, ev.position().1);
                 area.queue_draw();
                 glib::Propagation::Proceed
             });
