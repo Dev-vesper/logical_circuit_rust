@@ -8,19 +8,23 @@ use crate::menu;
 use crate::truth_panel::TruthPanel;
 
 const KEYS_TEXT: &str = "\
-Drag from a port     draw a wire; release on an input port to finish\n\
-Click while drawing  add a corner (repeat as many times as needed)\n\
-Escape               cancel the wire being drawn\n\
+Drag from a pin, a wire end or a point on a wire   draw a wire (a diagonal drag makes an L)\n\
+Drag back over a wire from its end                 shorten or delete that wire (white preview)\n\
+Click a wire                                       select it\n\
+Alt+drag on the middle of a wire                   move the wire\n\
+Alt+drag on empty space                            start a wire anywhere\n\
+Drag a gate or input                               move it; its wires follow\n\
+Shift while moving                                 leave the wires behind\n\
+Escape                                             cancel a move / disarm the tool\n\
+Right click                                        cancel a wire being drawn, or delete under the cursor\n\
+Delete, Backspace                                  delete the selection\n\
+Click on an input                                  toggle it between 0 and 1\n\
 \n\
-Alt+click on wire    select a wire so it can be edited or deleted\n\
-Click on a bend      drag that corner; on a segment, slide it\n\
-Ctrl+click segment   insert a bend at that point\n\
-Ctrl+click a bend    remove that bend\n\
-Right click          delete the node or the wire under the cursor\n\
-Delete, Backspace    delete the selection\n\
-Click on an input    toggle it between 0 and 1\n\
+Wires never overlap: a pin or a wire end on a wire splits it, and a dot marks\n\
+every point where more than two things meet.\n\
 \n\
-Green cable = 1, grey = 0, amber = no value yet, red = feedback cycle.";
+Dark green = 0, bright green = 1, blue = unknown/floating, gray = not attached\n\
+to anything, red = conflicting outputs or a feedback cycle.";
 
 pub fn create() -> gtk::Window {
     let window = gtk::Window::new(gtk::WindowType::Toplevel);
@@ -83,10 +87,6 @@ pub fn create() -> gtk::Window {
 
     // Keep the toolbar in sync when the canvas disarms a tool on its own.
     handle.set_tool_callback(toolbar.select_handle());
-
-    // Re-draw whenever a canvas method changes state.
-    // (queue_draw is already called by the canvas gesture handlers;
-    //  the handle methods queue too, so we don't need a signal here.)
 
     window.connect_destroy(|_| gtk::main_quit());
     window.show_all();

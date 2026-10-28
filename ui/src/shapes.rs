@@ -1,86 +1,34 @@
-//! The geometry and drawing of gate symbols.
+//! The drawing of gate symbols and the Logisim wire palette.
+//!
+//! Pin geometry lives in `layout.rs`; the numbers below (60x60 symbol, pins
+//! on the 10 px grid) must agree with it.
 
 use cairo::Context;
-use logic::{Gate, Kind, Value};
+use logic::{Gate, Value};
 
-pub const CELL: f64 = 20.0;
-pub const SIZE: f64 = 60.0;
-pub const INPUT_RADIUS: f64 = 16.0;
+pub const INPUT_RADIUS: f64 = 20.0;
 pub const BUBBLE_RADIUS: f64 = 4.5;
-pub const PORT_RADIUS: f64 = 4.5;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Point {
-    pub x: f64,
-    pub y: f64,
-}
-
-pub const INPUT_CENTER: Point = Point { x: 30.0, y: 30.0 };
-
-pub fn input_ports(kind: &Kind) -> Vec<Point> {
-    match kind {
-        Kind::Input => vec![],
-        Kind::Gate(Gate::And) | Kind::Gate(Gate::Or) => vec![
-            Point { x: 0.0, y: 15.0 },
-            Point { x: 0.0, y: 45.0 },
-        ],
-        Kind::Gate(Gate::Not) => vec![Point { x: 0.0, y: 30.0 }],
-    }
-}
-
-pub fn output_port(kind: &Kind) -> Point {
-    match kind {
-        Kind::Input => Point { x: 46.0, y: 30.0 },
-        Kind::Gate(_) => Point { x: 60.0, y: 30.0 },
-    }
-}
-
-pub fn snap(v: f64) -> f64 {
-    (v / CELL).round() * CELL
-}
-
-pub fn route(sx: f64, sy: f64, dx: f64, dy: f64) -> Vec<Point> {
-    // Already aligned or the same point: no interior bends.
-    if (dx - sx).abs() < 0.01 && (dy - sy).abs() < 0.01 {
-        return vec![];
-    }
-    if (dy - sy).abs() < 0.01 && dx > sx {
-        return vec![];
-    }
-    if (dx - sx).abs() < 0.01 {
-        return vec![];
-    }
-
-    // Plenty of room in front: Z with the vertical leg in between.
-    if dx >= sx + 2.0 * CELL {
-        let mid = (sx + CELL).max((dx - CELL).min(snap((sx + dx) / 2.0)));
-        return vec![Point { x: mid, y: sy }, Point { x: mid, y: dy }];
-    }
-    // A little room: L that turns down just before the target.
-    if dx > sx + CELL {
-        return vec![
-            Point { x: dx - CELL, y: sy },
-            Point { x: dx - CELL, y: dy },
-        ];
-    }
-    // The target is behind the source, or barely in front: lead out to
-    // the right, run above the whole span, then come back down.
-    let top = sy.min(dy) - CELL;
-    vec![
-        Point { x: sx + CELL, y: sy },
-        Point { x: sx + CELL, y: top },
-        Point { x: dx, y: top },
-    ]
-}
+pub const INPUT_CENTER: (f64, f64) = (30.0, 30.0);
 
 pub const INK: (f64, f64, f64) = (0.13, 0.15, 0.19);
 pub const PAPER: (f64, f64, f64) = (1.0, 1.0, 1.0);
-pub const GRID: (f64, f64, f64) = (0.84, 0.85, 0.88);
-pub const SELECTED: (f64, f64, f64) = (0.16, 0.44, 0.86);
-pub const HIGH: (f64, f64, f64) = (0.16, 0.62, 0.31);
-pub const LOW: (f64, f64, f64) = (0.45, 0.47, 0.52);
-pub const UNKNOWN: (f64, f64, f64) = (0.88, 0.72, 0.18);
-pub const CYCLE: (f64, f64, f64) = (0.85, 0.24, 0.20);
+pub const GRID: (f64, f64, f64) = (0.74, 0.76, 0.80);
+pub const SELECTED: (f64, f64, f64) = (0.55, 0.70, 1.0);
+/// The small circle drawn where a wire can be started.
+pub const HINT: (f64, f64, f64) = (0.0, 0.70, 0.0);
+
+// Logisim wire colours.
+/// Gray: the wire touches no component pin.
+pub const NIL: (f64, f64, f64) = (0.56, 0.56, 0.56);
+/// Dark green: 0.
+pub const LOW: (f64, f64, f64) = (0.0, 0.39, 0.0);
+/// Bright green: 1.
+pub const HIGH: (f64, f64, f64) = (0.0, 0.82, 0.0);
+/// Blue: carrying a value that is not known (floating / not yet computed).
+pub const UNKNOWN: (f64, f64, f64) = (0.16, 0.16, 1.0);
+/// Red: conflicting drivers, or a feedback cycle.
+pub const ERROR: (f64, f64, f64) = (0.75, 0.0, 0.0);
 
 pub fn color_of_value(v: Value) -> (f64, f64, f64) {
     match v {
@@ -102,11 +50,7 @@ pub fn centered_text(
     color: (f64, f64, f64),
     text: &str,
 ) {
-    cr.select_font_face(
-        "sans",
-        cairo::FontSlant::Normal,
-        cairo::FontWeight::Normal,
-    );
+    cr.select_font_face("sans", cairo::FontSlant::Normal, cairo::FontWeight::Normal);
     cr.set_font_size(font_size);
     if let Ok(extents) = cr.text_extents(text) {
         set_color(cr, color);
@@ -149,54 +93,47 @@ fn path(cr: &Context, x: f64, y: f64, gate: Gate) {
 
 fn fill_and_stroke(cr: &Context) {
     set_color(cr, PAPER);
-    cr.fill_preserve();
+    let _ = cr.fill_preserve();
     set_color(cr, INK);
     cr.set_line_width(2.0);
-    cr.stroke();
+    let _ = cr.stroke();
 }
 
 pub fn draw_gate(cr: &Context, x: f64, y: f64, gate: Gate) {
     path(cr, x, y, gate);
     fill_and_stroke(cr);
-    if gate == Gate::Not {
-        cr.arc(
-            x + 55.0,
-            y + 30.0,
-            BUBBLE_RADIUS,
-            0.0,
-            2.0 * std::f64::consts::PI,
-        );
-        fill_and_stroke(cr);
+    match gate {
+        Gate::Not => {
+            cr.arc(x + 55.0, y + 30.0, BUBBLE_RADIUS, 0.0, 2.0 * std::f64::consts::PI);
+            fill_and_stroke(cr);
+        }
+        Gate::Or => {
+            // short stubs so the pins at x = 0 reach the concave back
+            set_color(cr, INK);
+            cr.set_line_width(2.0);
+            for py in [20.0, 40.0] {
+                cr.move_to(x, y + py);
+                cr.line_to(x + 5.0, y + py);
+                let _ = cr.stroke();
+            }
+        }
+        Gate::And => {}
     }
-    centered_text(
-        cr,
-        x + 30.0,
-        y + 74.0,
-        11.0,
-        (0.42, 0.45, 0.51),
-        gate.name(),
-    );
+    centered_text(cr, x + 30.0, y + 74.0, 11.0, (0.42, 0.45, 0.51), gate.name());
 }
 
 pub fn draw_input(cr: &Context, x: f64, y: f64, label: &str, value: Value) {
     cr.arc(
-        x + INPUT_CENTER.x,
-        y + INPUT_CENTER.y,
+        x + INPUT_CENTER.0,
+        y + INPUT_CENTER.1,
         INPUT_RADIUS,
         0.0,
         2.0 * std::f64::consts::PI,
     );
     set_color(cr, color_of_value(value));
-    cr.fill_preserve();
+    let _ = cr.fill_preserve();
     set_color(cr, INK);
     cr.set_line_width(2.0);
-    cr.stroke();
-    centered_text(
-        cr,
-        x + INPUT_CENTER.x,
-        y + INPUT_CENTER.y,
-        14.0,
-        (1.0, 1.0, 1.0),
-        label,
-    );
+    let _ = cr.stroke();
+    centered_text(cr, x + INPUT_CENTER.0, y + INPUT_CENTER.1, 14.0, (1.0, 1.0, 1.0), label);
 }
