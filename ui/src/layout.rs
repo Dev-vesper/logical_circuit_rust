@@ -14,8 +14,13 @@ pub const SIZE: i32 = 60;
 pub fn input_offsets(kind: &Kind) -> Vec<(i32, i32)> {
     match kind {
         Kind::Input => vec![],
-        Kind::Gate(Gate::And) | Kind::Gate(Gate::Or) => vec![(0, 20), (0, 40)],
         Kind::Gate(Gate::Not) => vec![(0, 30)],
+        Kind::Gate(Gate::And)
+        | Kind::Gate(Gate::Or)
+        | Kind::Gate(Gate::Xor)
+        | Kind::Gate(Gate::Nand)
+        | Kind::Gate(Gate::Nor)
+        | Kind::Gate(Gate::Xnor) => vec![(0, 20), (0, 40)],
     }
 }
 

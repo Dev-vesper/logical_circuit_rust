@@ -94,36 +94,40 @@ pub fn create(canvas: &CanvasHandle, on_truth_table: impl Fn() + 'static) -> Too
     );
 
     // --- Gates ---
-    sidebar.pack_start(&gtk::Separator::new(gtk::Orientation::Horizontal), false, false, 0);
+    sidebar.pack_start(
+        &gtk::Separator::new(gtk::Orientation::Horizontal),
+        false,
+        false,
+        0,
+    );
     sidebar.pack_start(&section_label("Gates"), false, false, 0);
 
-    arm(
-        &sidebar,
-        Tool::Place(Kind::Gate(logic::Gate::And)),
-        "AND",
-        &mut buttons,
-        &mut group,
-        &updating,
-    );
-    arm(
-        &sidebar,
-        Tool::Place(Kind::Gate(logic::Gate::Or)),
-        "OR",
-        &mut buttons,
-        &mut group,
-        &updating,
-    );
-    arm(
-        &sidebar,
-        Tool::Place(Kind::Gate(logic::Gate::Not)),
-        "NOT",
-        &mut buttons,
-        &mut group,
-        &updating,
-    );
+    for (gate, label) in [
+        (logic::Gate::And, "AND"),
+        (logic::Gate::Or, "OR"),
+        (logic::Gate::Not, "NOT"),
+        (logic::Gate::Xor, "XOR"),
+        (logic::Gate::Nand, "NAND"),
+        (logic::Gate::Nor, "NOR"),
+        (logic::Gate::Xnor, "XNOR"),
+    ] {
+        arm(
+            &sidebar,
+            Tool::Place(Kind::Gate(gate)),
+            label,
+            &mut buttons,
+            &mut group,
+            &updating,
+        );
+    }
 
     // --- Inputs ---
-    sidebar.pack_start(&gtk::Separator::new(gtk::Orientation::Horizontal), false, false, 0);
+    sidebar.pack_start(
+        &gtk::Separator::new(gtk::Orientation::Horizontal),
+        false,
+        false,
+        0,
+    );
     sidebar.pack_start(&section_label("Inputs"), false, false, 0);
 
     arm(
@@ -136,7 +140,12 @@ pub fn create(canvas: &CanvasHandle, on_truth_table: impl Fn() + 'static) -> Too
     );
 
     // --- Actions ---
-    sidebar.pack_start(&gtk::Separator::new(gtk::Orientation::Horizontal), false, false, 0);
+    sidebar.pack_start(
+        &gtk::Separator::new(gtk::Orientation::Horizontal),
+        false,
+        false,
+        0,
+    );
     sidebar.pack_start(&section_label("Actions"), false, false, 0);
 
     let delete = gtk::Button::with_label("Delete");
