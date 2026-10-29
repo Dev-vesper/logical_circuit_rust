@@ -9,7 +9,7 @@ use crate::truth_panel::TruthPanel;
 
 const KEYS_TEXT: &str = "\
 Drag from a pin, a wire end or a point on a wire   draw a wire (a diagonal drag makes an L)\n\
-Drag back over a wire from its end                 shorten or delete that wire (white preview)\n\
+Drag back over a wire from its end                 shorten or delete that wire (dark preview)\n\
 Click a wire                                       select it\n\
 Alt+drag on the middle of a wire                   move the wire\n\
 Alt+drag on empty space                            start a wire anywhere\n\
@@ -23,21 +23,16 @@ Click on an input                                  toggle it between 0 and 1\n\
 Wires never overlap: a pin or a wire end on a wire splits it, and a dot marks\n\
 every point where more than two things meet.\n\
 \n\
-Dark green = 0, bright green = 1, blue = unknown/floating, gray = not attached\n\
-to anything, red = conflicting outputs or a feedback cycle.";
+Dark green = 0, bright green = 1, brown = unknown/floating, warm grey = not\n\
+attached to anything, red = conflicting outputs or a feedback cycle.";
 
 pub fn create() -> gtk::Window {
     let window = gtk::Window::new(gtk::WindowType::Toplevel);
     window.set_title("Logical circuit");
-    window.set_default_size(1080, 720); // slightly wider for the sidebar
+    window.set_default_size(1080, 720);
 
-    // Main vertical layout: menu, then a horizontal paned area, then status.
     let vbox = gtk::Box::new(gtk::Orientation::Vertical, 0);
     window.add(&vbox);
-
-    // Menu bar (unchanged)
-    // ... (same as before, but note we build the canvas and toolbar after
-    //      the menu so that the closures can reference them.)
 
     let canvas = Canvas::new();
     let handle = canvas.handle();
@@ -79,12 +74,10 @@ pub fn create() -> gtk::Window {
     let paned = gtk::Paned::new(gtk::Orientation::Horizontal);
     paned.set_wide_handle(true);
 
-    // Sidebar (toolbar)
     let toolbar = toolbar::create(&handle, show_truth.clone());
     paned.pack1(toolbar.widget(), false, false);
-    paned.set_position(200); // default width
+    paned.set_position(200);
 
-    // Canvas
     paned.pack2(&canvas.widget, true, true);
     vbox.pack_start(&paned, true, true, 0);
 
@@ -102,7 +95,6 @@ pub fn create() -> gtk::Window {
         handle.set_status(move |m| status.set_text(&m));
     }
 
-    // Keep the sidebar in sync when the canvas disarms a tool on its own.
     handle.set_tool_callback(toolbar.select_handle());
 
     window.connect_destroy(|_| gtk::main_quit());

@@ -1,4 +1,4 @@
-//! The drawing of gate symbols and the Logisim wire palette.
+//! The drawing of gate symbols and the dark-theme wire palette.
 //!
 //! Pin geometry lives in `layout.rs`; the numbers below (60x60 symbol, pins
 //! on the 10 px grid) must agree with it.
@@ -11,30 +11,47 @@ pub const BUBBLE_RADIUS: f64 = 4.5;
 
 pub const INPUT_CENTER: (f64, f64) = (30.0, 30.0);
 
-pub const INK: (f64, f64, f64) = (0.13, 0.15, 0.19);
-pub const PAPER: (f64, f64, f64) = (1.0, 1.0, 1.0);
-pub const GRID: (f64, f64, f64) = (0.74, 0.76, 0.80);
-pub const SELECTED: (f64, f64, f64) = (0.55, 0.70, 1.0);
-/// The small circle drawn where a wire can be started.
-pub const HINT: (f64, f64, f64) = (0.0, 0.70, 0.0);
+// ---------- dark-theme palette ----------
+// Only warm blacks / off-whites / neutral browns, plus muted green and red.
 
-// Logisim wire colours.
-/// Gray: the wire touches no component pin.
-pub const NIL: (f64, f64, f64) = (0.56, 0.56, 0.56);
-/// Dark green: 0.
-pub const LOW: (f64, f64, f64) = (0.0, 0.39, 0.0);
-/// Bright green: 1.
-pub const HIGH: (f64, f64, f64) = (0.0, 0.82, 0.0);
-/// Blue: carrying a value that is not known (floating / not yet computed).
-pub const UNKNOWN: (f64, f64, f64) = (0.16, 0.16, 1.0);
-/// Red: conflicting drivers, or a feedback cycle.
-pub const ERROR: (f64, f64, f64) = (0.75, 0.0, 0.0);
+/// Symbol outlines and text – warm off-white.
+pub const INK: (f64, f64, f64) = (0.90, 0.87, 0.82);
+/// Background / gate fill – warm near-black.
+pub const PAPER: (f64, f64, f64) = (0.09, 0.08, 0.07);
+/// The dot grid – dark warm brown.
+pub const GRID: (f64, f64, f64) = (0.22, 0.19, 0.16);
+/// Selection highlight – light warm brown.
+pub const SELECTED: (f64, f64, f64) = (0.72, 0.66, 0.55);
+/// The little circle where a wire can be started – muted green.
+pub const HINT: (f64, f64, f64) = (0.40, 0.65, 0.45);
+
+// Logisim wire colours, dark-theme variants.
+/// Warm grey/brown: the wire touches no component pin.
+pub const NIL: (f64, f64, f64) = (0.42, 0.38, 0.33);
+/// Dark muted green: 0.
+pub const LOW: (f64, f64, f64) = (0.10, 0.28, 0.14);
+/// Bright muted green: 1.
+pub const HIGH: (f64, f64, f64) = (0.40, 0.72, 0.48);
+/// Warm brown: carrying a value that is not known (floating).
+pub const UNKNOWN: (f64, f64, f64) = (0.58, 0.42, 0.24);
+/// Muted red: conflicting drivers, or a feedback cycle.
+pub const ERROR: (f64, f64, f64) = (0.72, 0.30, 0.28);
 
 pub fn color_of_value(v: Value) -> (f64, f64, f64) {
     match v {
         Value::High => HIGH,
         Value::Low => LOW,
         Value::Unknown => UNKNOWN,
+    }
+}
+
+/// Text colour drawn on top of an input circle.
+fn input_label_color(v: Value) -> (f64, f64, f64) {
+    match v {
+        // Light text on the dark-green "0" fill.
+        Value::Low => (0.90, 0.87, 0.82),
+        // Dark text on the brighter green "1" fill and the brown "unknown" fill.
+        _ => (0.09, 0.08, 0.07),
     }
 }
 
@@ -119,7 +136,14 @@ pub fn draw_gate(cr: &Context, x: f64, y: f64, gate: Gate) {
         }
         Gate::And => {}
     }
-    centered_text(cr, x + 30.0, y + 74.0, 11.0, (0.42, 0.45, 0.51), gate.name());
+    centered_text(
+        cr,
+        x + 30.0,
+        y + 74.0,
+        11.0,
+        (0.55, 0.50, 0.44),
+        gate.name(),
+    );
 }
 
 pub fn draw_input(cr: &Context, x: f64, y: f64, label: &str, value: Value) {
@@ -135,5 +159,12 @@ pub fn draw_input(cr: &Context, x: f64, y: f64, label: &str, value: Value) {
     set_color(cr, INK);
     cr.set_line_width(2.0);
     let _ = cr.stroke();
-    centered_text(cr, x + INPUT_CENTER.0, y + INPUT_CENTER.1, 14.0, (1.0, 1.0, 1.0), label);
+    centered_text(
+        cr,
+        x + INPUT_CENTER.0,
+        y + INPUT_CENTER.1,
+        14.0,
+        input_label_color(value),
+        label,
+    );
 }
