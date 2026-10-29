@@ -30,6 +30,50 @@ menuitem:hover {
     color: #ffffff;
 }
 
+/* ---------- Sidebar ---------- */
+.tool-sidebar {
+    background: #f8f9fb;
+    border-right: 1px solid #d0d2d8;
+}
+
+.section-title {
+    font-size: 11pt;
+    font-weight: bold;
+    color: #5a5e66;
+    margin-top: 12px;
+    margin-bottom: 4px;
+    margin-left: 4px;
+}
+
+.tool-button, .action-button {
+    background-image: none;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 12px;
+    color: #202125;
+    text-shadow: none;
+    box-shadow: none;
+    -gtk-icon-shadow: none;
+    outline: none;
+    transition: background 0.15s ease;
+}
+
+.tool-button:hover, .action-button:hover {
+    background: #e4e6ec;
+}
+
+.tool-button:active, .tool-button:checked {
+    background: #2a6fd6;
+    color: #ffffff;
+    border: none;
+}
+
+.tool-button:active label, .tool-button:checked label {
+    color: #ffffff;
+}
+
+/* Regular buttons (for completeness, e.g. dialog buttons) */
 button {
     background-image: none;
     background: #ffffff;
@@ -50,10 +94,6 @@ button:hover {
 button:active, button:checked {
     background: #2a6fd6;
     border-color: #245cbf;
-    color: #ffffff;
-}
-
-button:active label, button:checked label {
     color: #ffffff;
 }
 

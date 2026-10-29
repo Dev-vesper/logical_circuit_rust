@@ -2,9 +2,9 @@ use std::rc::Rc;
 
 use gtk::prelude::*;
 
-use crate::buttons;
 use crate::canvas::Canvas;
 use crate::menu;
+use crate::toolbar;
 use crate::truth_panel::TruthPanel;
 
 const KEYS_TEXT: &str = "\
@@ -29,10 +29,15 @@ to anything, red = conflicting outputs or a feedback cycle.";
 pub fn create() -> gtk::Window {
     let window = gtk::Window::new(gtk::WindowType::Toplevel);
     window.set_title("Logical circuit");
-    window.set_default_size(960, 680);
+    window.set_default_size(1080, 720); // slightly wider for the sidebar
 
+    // Main vertical layout: menu, then a horizontal paned area, then status.
     let vbox = gtk::Box::new(gtk::Orientation::Vertical, 0);
     window.add(&vbox);
+
+    // Menu bar (unchanged)
+    // ... (same as before, but note we build the canvas and toolbar after
+    //      the menu so that the closures can reference them.)
 
     let canvas = Canvas::new();
     let handle = canvas.handle();
@@ -70,14 +75,26 @@ pub fn create() -> gtk::Window {
     );
     vbox.pack_start(&menubar, false, false, 0);
 
-    // Toolbar
-    let toolbar = buttons::create(&handle, show_truth);
-    vbox.pack_start(toolbar.widget(), false, false, 0);
-    vbox.pack_start(&canvas.widget, true, true, 0);
+    // Horizontal paned: sidebar on the left, canvas on the right.
+    let paned = gtk::Paned::new(gtk::Orientation::Horizontal);
+    paned.set_wide_handle(true);
+
+    // Sidebar (toolbar)
+    let toolbar = toolbar::create(&handle, show_truth.clone());
+    paned.pack1(toolbar.widget(), false, false);
+    paned.set_position(200); // default width
+
+    // Canvas
+    paned.pack2(&canvas.widget, true, true);
+    vbox.pack_start(&paned, true, true, 0);
 
     // Status bar
     let status = gtk::Label::new(Some("place a gate or an input to begin"));
     status.set_xalign(0.0);
+    status.set_margin_start(6);
+    status.set_margin_end(6);
+    status.set_margin_top(4);
+    status.set_margin_bottom(4);
     vbox.pack_start(&status, false, false, 0);
 
     {
@@ -85,7 +102,7 @@ pub fn create() -> gtk::Window {
         handle.set_status(move |m| status.set_text(&m));
     }
 
-    // Keep the toolbar in sync when the canvas disarms a tool on its own.
+    // Keep the sidebar in sync when the canvas disarms a tool on its own.
     handle.set_tool_callback(toolbar.select_handle());
 
     window.connect_destroy(|_| gtk::main_quit());
