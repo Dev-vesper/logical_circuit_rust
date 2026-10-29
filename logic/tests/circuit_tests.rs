@@ -1,3 +1,5 @@
+mod common;
+
 use logic::circuit::{Error, Kind};
 use logic::{Circuit, Gate};
 
@@ -112,7 +114,6 @@ fn cycles() {
 
 #[test]
 fn half_adder_matches_definition() {
-    mod common;
     use common::half_adder;
 
     let ha = half_adder();

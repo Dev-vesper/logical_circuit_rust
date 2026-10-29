@@ -1,6 +1,6 @@
 //! A combinational circuit: a directed acyclic graph of inputs and gates.
 
-use crate::gate::{Gate, Value};
+use crate::gates::{Gate, Value};
 
 pub type NodeId = usize;
 

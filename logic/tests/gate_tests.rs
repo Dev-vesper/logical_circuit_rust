@@ -1,4 +1,4 @@
-use logic::gate::{Gate, Value};
+use logic::{Gate, Value};
 
 #[test]
 fn arity() {

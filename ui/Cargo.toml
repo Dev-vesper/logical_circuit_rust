@@ -5,7 +5,7 @@ edition.workspace = true
 
 [dependencies]
 logic.workspace = true
-cairo-rs = "0.18"
+cairo-rs = { version = "0.18", features = ["png"] }
 gtk = "0.18"
 gdk = "0.18"
 glib = "0.18"
