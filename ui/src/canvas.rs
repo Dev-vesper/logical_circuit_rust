@@ -157,10 +157,6 @@ fn letters_of(doc: &Doc) -> Vec<String> {
     letters
 }
 
-fn value_of(a: &Analysis, id: Id) -> Value {
-    a.values.get(id).copied().unwrap_or(Value::Unknown)
-}
-
 fn look_color(l: Look) -> (f64, f64, f64) {
     match l {
         Look::Bare => shapes::NIL,

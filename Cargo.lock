@@ -698,7 +698,6 @@ dependencies = [
  "glib",
  "gtk",
  "logic",
- "pango",
 ]
 
 [[package]]

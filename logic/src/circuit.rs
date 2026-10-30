@@ -20,9 +20,6 @@ pub enum Error {
     Cyclic(Vec<NodeId>),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Invalid(pub Error);
-
 fn close_cycle(ids: &[NodeId]) -> Vec<NodeId> {
     if ids.is_empty() {
         return Vec::new();
@@ -77,6 +74,7 @@ impl Circuit {
     fn find(&self, id: NodeId) -> Result<&Node, Error> {
         self.nodes.get(id).ok_or(Error::UnknownNode(id))
     }
+
     pub fn kind(&self, id: NodeId) -> Result<Kind, Error> {
         self.find(id).map(|n| n.kind)
     }
@@ -110,24 +108,11 @@ impl Circuit {
             .collect()
     }
 
-    pub fn wires(&self, id: NodeId) -> Result<Vec<NodeId>, Error> {
-        self.find(id).map(|n| n.wires.clone())
-    }
-
     pub fn successors(&self, id: NodeId) -> Result<Vec<NodeId>, Error> {
         self.find(id).map(|n| n.successors.clone())
     }
 
-    pub fn iter_wires(&self, mut f: impl FnMut(NodeId, NodeId)) {
-        for (src, n) in self.nodes.iter().enumerate() {
-            for &dst in &n.successors {
-                f(src, dst);
-            }
-        }
-    }
-
     pub fn connect(&mut self, src: NodeId, dst: NodeId) -> Result<(), Error> {
-        // borrow split: get immutable info first, then mutate.
         let src_ok = src < self.nodes.len();
         let dst_ok = dst < self.nodes.len();
         if !src_ok {
@@ -163,12 +148,6 @@ impl Circuit {
             }
             _ => Err(Error::NotAnInput(id)),
         }
-    }
-
-    pub fn get_input(&self, id: NodeId) -> Option<bool> {
-        self.nodes.get(id).and_then(|n| {
-            matches!(n.kind, Kind::Input).then_some(n.input)
-        })
     }
 
     /// Port wire list padded to the gate's arity with [None].
@@ -260,17 +239,5 @@ impl Circuit {
             return Err(Error::Incomplete(id));
         }
         Ok(values.into_iter().map(|v| v.to_bool()).collect())
-    }
-
-    pub fn validate(&self) -> Result<(), Error> {
-        self.simulate().map(|_| ())
-    }
-
-    pub fn eval(&self, id: NodeId) -> Result<bool, Error> {
-        if id >= self.nodes.len() {
-            return Err(Error::UnknownNode(id));
-        }
-        let values = self.simulate()?;
-        Ok(values[id])
     }
 }

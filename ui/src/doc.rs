@@ -349,11 +349,6 @@ impl Doc {
     pub fn build(&self) -> Circuit {
         self.analyze().circuit
     }
-
-    pub fn evaluate(&self) -> (Circuit, Vec<Value>, Vec<NodeId>) {
-        let a = self.analyze();
-        (a.circuit, a.values, a.cycle)
-    }
 }
 
 fn shorted(before: &[usize], after: &[usize]) -> bool {

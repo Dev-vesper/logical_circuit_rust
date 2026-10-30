@@ -71,11 +71,6 @@ impl Gate {
         }
     }
 
-    pub fn eval(self, inputs: &[bool]) -> bool {
-        let vals: Vec<Value> = inputs.iter().map(|&b| Value::of_bool(b)).collect();
-        self.eval3(&vals).to_bool()
-    }
-
     pub fn name(self) -> &'static str {
         match self {
             Gate::And => And::NAME,

@@ -58,7 +58,6 @@ fn name_of_index(k: usize) -> String {
 }
 
 impl Table {
-    pub const MAX_INPUTS: usize = crate::truth_table::MAX_INPUTS;
     pub fn of_circuit(circuit: &Circuit, outputs: Option<&[NodeId]>) -> Result<Table, Error> {
         let inputs = circuit.input_nodes();
         let count = inputs.len();
