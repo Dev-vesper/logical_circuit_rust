@@ -55,12 +55,14 @@ pub fn create(canvas: &CanvasHandle, on_truth_table: impl Fn() + 'static) -> Too
     // --- Select tool (top, always visible) ---
     sidebar.pack_start(&section_label("Tools"), false, false, 0);
 
-    let mut arm = |parent: &gtk::Box,
-                   tool: Tool,
-                   label: &str,
-                   buttons: &mut Vec<(Tool, gtk::RadioButton)>,
-                   group: &mut Option<gtk::RadioButton>,
-                   updating: &Rc<Cell<bool>>| {
+    // The closure captures nothing mutably (all `&mut` arguments are
+    // parameters, not captures), so it is `Fn` and does not need `mut`.
+    let arm = |parent: &gtk::Box,
+               tool: Tool,
+               label: &str,
+               buttons: &mut Vec<(Tool, gtk::RadioButton)>,
+               group: &mut Option<gtk::RadioButton>,
+               updating: &Rc<Cell<bool>>| {
         let button = gtk::RadioButton::with_label(label);
         if let Some(g) = group {
             button.join_group(Some(g));

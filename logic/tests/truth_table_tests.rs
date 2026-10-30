@@ -1,7 +1,7 @@
 mod common;
 use common::half_adder;
-use logic::circuit::{Circuit, Error as CircuitError, Kind};
-use logic::{Gate, TruthTable};
+use logic::circuit::Circuit;
+use logic::TruthTable;
 
 #[test]
 fn half_adder_table() {

@@ -28,7 +28,7 @@ fn main() {
     let mut doc = Doc::new();
     let a = doc.add(Kind::Input, 40, 40);
     let _b = doc.add(Kind::Input, 40, 140);
-    let conj = doc.add(Kind::Gate(Gate::And), 220, 80);
+    let _conj = doc.add(Kind::Gate(Gate::And), 220, 80);
     let inv = doc.add(Kind::Gate(Gate::Not), 380, 100);
     doc.toggle(a);
 

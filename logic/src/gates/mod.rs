@@ -71,6 +71,15 @@ impl Gate {
         }
     }
 
+    /// Boolean convenience wrapper over [`Gate::eval3`].  Every input must be
+    /// a concrete `true`/`false`; if the gate would produce `Unknown` on
+    /// those inputs (impossible here, since none is `Value::Unknown`) or
+    /// panics (a non-1-element `Not`), the panic propagates unchanged.
+    pub fn eval(self, inputs: &[bool]) -> bool {
+        let vals: Vec<Value> = inputs.iter().map(|&b| Value::of_bool(b)).collect();
+        self.eval3(&vals).to_bool()
+    }
+
     pub fn name(self) -> &'static str {
         match self {
             Gate::And => And::NAME,

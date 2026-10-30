@@ -63,6 +63,8 @@ pub struct Circuit {
 }
 
 impl Circuit {
+    // ----- construction and basic inspection -----
+
     pub fn new() -> Self {
         Circuit { nodes: Vec::new() }
     }
@@ -108,9 +110,30 @@ impl Circuit {
             .collect()
     }
 
+    // ----- edges: read -----
+
+    /// Sources feeding `id`'s input ports, in insertion order.  For an input
+    /// node, always empty.
+    pub fn wires(&self, id: NodeId) -> Result<Vec<NodeId>, Error> {
+        self.find(id).map(|n| n.wires.clone())
+    }
+
+    /// Targets that `id`'s output drives, in insertion order.
     pub fn successors(&self, id: NodeId) -> Result<Vec<NodeId>, Error> {
         self.find(id).map(|n| n.successors.clone())
     }
+
+    /// Visit every (src, dst) edge once.  Order: by src index, then by dst
+    /// insertion order.
+    pub fn iter_wires(&self, mut f: impl FnMut(NodeId, NodeId)) {
+        for (src, n) in self.nodes.iter().enumerate() {
+            for &dst in &n.successors {
+                f(src, dst);
+            }
+        }
+    }
+
+    // ----- edges: mutate -----
 
     pub fn connect(&mut self, src: NodeId, dst: NodeId) -> Result<(), Error> {
         let src_ok = src < self.nodes.len();
@@ -140,6 +163,8 @@ impl Circuit {
             .unwrap_or_else(|e| panic!("{}", e));
     }
 
+    // ----- input values -----
+
     pub fn set_input(&mut self, id: NodeId, value: bool) -> Result<(), Error> {
         match self.find(id)? {
             Node { kind: Kind::Input, .. } => {
@@ -149,6 +174,16 @@ impl Circuit {
             _ => Err(Error::NotAnInput(id)),
         }
     }
+
+    /// Current value of an input node, or `None` if `id` is unknown or not
+    /// an input.  The symmetric reader for [`Circuit::set_input`].
+    pub fn get_input(&self, id: NodeId) -> Option<bool> {
+        self.nodes.get(id).and_then(|n| {
+            matches!(n.kind, Kind::Input).then_some(n.input)
+        })
+    }
+
+    // ----- simulation -----
 
     /// Port wire list padded to the gate's arity with [None].
     fn ports(g: Gate, wires: &[NodeId]) -> Vec<Option<NodeId>> {
@@ -239,5 +274,21 @@ impl Circuit {
             return Err(Error::Incomplete(id));
         }
         Ok(values.into_iter().map(|v| v.to_bool()).collect())
+    }
+
+    /// Boolean value of a single node.  Fully evaluates the circuit first;
+    /// use [`Circuit::simulate_partial`] if partial values are acceptable.
+    pub fn eval(&self, id: NodeId) -> Result<bool, Error> {
+        if id >= self.nodes.len() {
+            return Err(Error::UnknownNode(id));
+        }
+        let values = self.simulate()?;
+        Ok(values[id])
+    }
+
+    /// Full simulation, discarding the values.  Equivalent to
+    /// `self.simulate().map(|_| ())`.
+    pub fn validate(&self) -> Result<(), Error> {
+        self.simulate().map(|_| ())
     }
 }
